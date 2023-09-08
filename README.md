@@ -1,17 +1,31 @@
 # Grayson's Compiler Project (name subject to change)
 
-### About this project
+### How to use
 
-#### ...
+#### Compiling a program
+...
+
+### About the language
+
+...
+
+### About the project
+
+#### Architecture
+...
 
 #### Dependencies
     (1) Boost
     (2) Boost Program Options
 
-### Compiling the compiler
+#### Installing
+
+Clone the project.
 
 Make sure to update the path to boost in the Makefile.
 
-`make`
+Run:
 
-This should generate the ./bin/gcp executable.
+`$ make`
+
+You should now be able to find the compiler at ./bin/gcp
