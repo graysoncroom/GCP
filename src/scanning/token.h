@@ -1,7 +1,5 @@
 #pragma once
 
-#include "scanner.h"
-
 #include <cctype>
 #include <iostream>
 #include <stdexcept>
@@ -11,113 +9,103 @@
 #include <boost/bimap.hpp>
 //#include <boost/assign.hpp>
 
-enum TokenType: int {
-  UnknownToken,
+namespace Token {
+  struct UnknownToken {};
+
   // operators
-  Plus,
-  Minus,
-  Star,
-  Slash,
+  struct Plus {
+
+  };
+
+  struct Minus {
+
+  };
+
+  struct Star {
+
+  };
+
+  struct Slash {
+
+  };
+
   // literals
-  IntegerLiteral
-};
+  struct IntegerLiteral {
+    int value;
+  };
 
-// Define a traits class to map TokenType to its corresponding value type 
-template <TokenType T>
-struct TokenTypeTraits {
-  using ValueType = int; // TODO: change
-}; 
+  template<class... Ts>
+  struct overloaded : Ts... { using Ts::operator()...; };
 
-template <>
-struct TokenTypeTraits<TokenType::IntegerLiteral> {
-  using ValueType = int;
-};
+  template<class... Ts>
+  overloaded(Ts...) -> overloaded<Ts...>;
 
-/*
-template <>
-struct TokenTypeTraits<TokenType::StringLiteral> {
-  using ValueType = std::string;
-};
-*/
+  using Token = std::variant<UnknownToken, Plus, Minus, Star, Slash, IntegerLiteral>;
 
-template <TokenType T>
-class Token {
-public:
-  using Value = TokenTypeTraits<T>::ValueType;
-
-  using AnyToken = 
-    std::variant<
-      Token<TokenType::UnknownToken>,
-      Token<TokenType::Plus>,
-      Token<TokenType::Minus>,
-      Token<TokenType::Star>,
-      Token<TokenType::Slash>,
-      Token<TokenType::IntegerLiteral>>;
-
-  Token() = delete;
-  constexpr Token(Value val = Value{}): value(val) {
-    token_bimap =  
-      { {TokenType::UnknownToken   , "unknown token"}
-      , {TokenType::IntegerLiteral , "integer literal"}
-      , {TokenType::Plus           , "+"}
-      , {TokenType::Minus          , "-"} 
-      , {TokenType::Star           , "*"} 
-      , {TokenType::Slash          , "/"} 
-      };
+  std::optional<Token> construct_token(const std::string_view &str) {
+    if (str == "+") {
+      return Plus{};
+    }
+    else if (str == "-") {
+      return Minus{};
+    }
+    else if (str == "*") {
+      return Star{};
+    }
+    else if (str == "/") {
+      return Slash{};
+    }
+    else {
+      return std::nullopt;
+    }
   }
 
-  constexpr Value getValue() const { return value; }
+  std::ostream &operator<<(std::ostream &os, Token &token) {
+    std::visit(overloaded {
+      [&os](Plus&)             { os << "+"; },
+      [&os](Minus)             { os << "-"; },
+      [&os](Star&)             { os << "*"; },
+      [&os](Slash&)            { os << "/"; },
+      [&os](IntegerLiteral &t) { os << t.value; },
+      [&os](auto&)             { throw std::runtime_error("no string conversion available"); }
+    }, token);
 
-  // Allow switch and comparisons.   
-  constexpr operator TokenType() const 
-  { return T; }
+    return os;
+  }
 
-  // get the underlying int representation of TokenType enum `T`
-  constexpr operator int() const
-  { return static_cast<int>(T); }
+  std::istream &operator>>(std::istream &is, Token &token) {
+    char c;
+    is >> std::ws;  // Skip leading whitespace
 
-  // Disallow `if (token) ...` shenanigans.
-  explicit  operator bool() const = delete;
+    if (is.eof()) {
+      std::cout << "is.eof() hit from within `std::istream &operator>>(std::istream &is, Token &token)`\n";
+      token = UnknownToken{};
+      return is;
+    }
 
-  constexpr bool operator==(Token a) const
-  { return token_type == a.token_type && value == value; }
+    is.get(c);  // Read the next character
 
-  constexpr bool operator!=(Token a) const
-  { return token_type != a.token_type || value != value; }
+    if (isdigit(c)) {
+      // Read an integer literal
+      is.unget();  // Put the digit back to read the whole number
+      int value;
+      is >> value;
+      token = IntegerLiteral{value};
+    } 
+    else {
+      // Try to construct an operator token
+      std::string symbol(1, c);
+      std::optional<Token> opToken = construct_token(symbol);
 
-  constexpr operator std::string() const
-  { return Token::tttos(T); }
+      if (opToken.has_value()) {
+        token = opToken.value();
+      }
+      else {
+        token = UnknownToken{};
+        is.setstate(std::ios_base::failbit);
+      }
+    }
 
-  // stott = string to token type
-  constexpr friend TokenType stott(const std::string str)
-  { return token_bimap.right.at(str); }
-  
-  // tttos = token type to string
-  constexpr friend std::string tttos(const TokenType token_type)
-  { return token_bimap.left.at(token_type); }
-
-
-private:
-  TokenType token_type;
-  Value value;
-
-  // Error: assign not constexpr
-  /*
-  using bimapType = boost::bimap<TokenType, std::string>;
-  static constexpr bimapType tokenBimap = boost::assign::list_of<bimapType::relation>
-    (TokenType::UnknownToken, "unknown token")
-    (TokenType::IntegerLiteral, "integer literal")
-    (TokenType::Plus, "+")
-    (TokenType::Minus, "-")
-    (TokenType::Star, "*")
-    (TokenType::Slash, "/");
-  */
-
-  static boost::bimap<TokenType, std::string> token_bimap;
-};
-
-template<TokenType T>
-std::ostream &operator<<(std::ostream &os, const Token<T> &a) {
-  os << static_cast<std::string>(a);
-  return os;
+    return is;
+  }
 }
