@@ -11,7 +11,7 @@ bpo::variables_map get_args(int argc, char **argv) {
   desc.add_options()
     ("help", "produce help message")
     ("version", "print version information")
-    ("input", bpo::value<std::string>(), "input file");
+    ("input", bpo::value<std::string>()->required(), "input file");
   
   // Parse the command line arguments
   bpo::variables_map vm;
