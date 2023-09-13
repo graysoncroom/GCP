@@ -8,31 +8,31 @@
 
 #include <boost/bimap.hpp>
 //#include <boost/assign.hpp>
+//
+// Token::Token
 
 namespace Token {
   struct UnknownToken {};
 
   // operators
   struct Plus {
-
+    template <typename T> T operator()(T x, T y) { return x + y; }
   };
 
   struct Minus {
-
+    template <typename T> T operator()(T x, T y) { return x - y; }
   };
 
   struct Star {
-
+    template <typename T> T operator()(T x, T y) { return x * y; }
   };
 
   struct Slash {
-
+    template <typename T> T operator()(T x, T y) { return x / y; }
   };
 
   // literals
-  struct IntegerLiteral {
-    int value;
-  };
+  struct IntegerLiteral { int value; };
 
   template<class... Ts>
   struct overloaded : Ts... { using Ts::operator()...; };
@@ -42,6 +42,34 @@ namespace Token {
 
   using Token = std::variant<UnknownToken, Plus, Minus, Star, Slash, IntegerLiteral>;
 
+  template <typename T>
+  T call_operator_of(Token &token, T x, T y) {
+    T result{};
+    std::visit(overloaded {
+      [&](Plus&)            { result = x + y; },
+      [&](Minus&)           { result = x - y; },
+      [&](Star&)            { result = x * y; },
+      [&](Slash&)           { result = x / y; },
+      [&](IntegerLiteral &) { throw std::runtime_error("error"); },
+      [&](auto&)            { throw std::runtime_error("error"); }
+    }, token);
+    return result;
+  }
+
+  bool is_terminal(Token &token) {
+    bool token_is_terminal;
+    std::visit(overloaded {
+      [&](Plus&)            { token_is_terminal = false; },
+      [&](Minus&)           { token_is_terminal = false; },
+      [&](Star&)            { token_is_terminal = false; },
+      [&](Slash&)           { token_is_terminal = false; },
+      [&](IntegerLiteral &) { token_is_terminal = true; },
+      [&](auto&)            { throw std::runtime_error("is terminal error"); }
+    }, token);
+
+    return token_is_terminal;
+  }
+  
   std::optional<Token> construct_token(const std::string_view &str) {
     if (str == "+") {
       return Plus{};
@@ -63,7 +91,7 @@ namespace Token {
   std::ostream &operator<<(std::ostream &os, Token &token) {
     std::visit(overloaded {
       [&os](Plus&)             { os << "+"; },
-      [&os](Minus)             { os << "-"; },
+      [&os](Minus&)            { os << "-"; },
       [&os](Star&)             { os << "*"; },
       [&os](Slash&)            { os << "/"; },
       [&os](IntegerLiteral &t) { os << t.value; },
@@ -78,8 +106,8 @@ namespace Token {
     is >> std::ws;  // Skip leading whitespace
 
     if (is.eof()) {
-      std::cout << "is.eof() hit from within `std::istream &operator>>(std::istream &is, Token &token)`\n";
       token = UnknownToken{};
+      is.setstate(std::ios_base::failbit);
       return is;
     }
 
