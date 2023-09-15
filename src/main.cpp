@@ -1,80 +1,10 @@
 #include "scanning/token.h"
+#include "parsing/parser.h"
 #include "utils/arguments.h"
 
 #include <string>
 #include <fstream>
 #include <iostream>
-
-namespace Parser {
-  struct ASTNode {
-    Token::Token token;
-    ASTNode* left_child;
-    ASTNode* right_child;
-  };
-
-  int interpret_ast(ASTNode *node) {
-    if (node->left_child == nullptr || node->right_child == nullptr) {
-      if (!Token::is_terminal(node->token)) { throw "AST Error"; }
-
-      return std::get<Token::IntegerLiteral>(node->token).value;
-    }
-
-    int result = Token::call_operator_of(node->token, interpret_ast(node->left_child), interpret_ast(node->right_child));
-
-    return result;
-  }
-
-
-  ASTNode *parse_ast(std::vector<Token::Token> scanned_tokens) {
-    ASTNode *node = new ASTNode();
-
-    size_t token_count = scanned_tokens.size();
-
-    switch (token_count) {
-      case 0:
-        throw "Input File Empty. Invalid program.";
-      case 1: {
-        node->token = scanned_tokens[0];
-        return node;
-      }
-    }
-    
-    
-    //node->left_child = new ASTNode();
-    //node->left_child->token = scanned_tokens[0];
-    //node->token = scanned_token[1];
-
-    //ASTNode *tmp_node = node;
-
-    //size_t i = 2;
-    //while (i < token_count) {
-    //  tmp_node->left_child = new ASTNode();
-    //  tmp_node->left_child->token = scanned_tokens[i];
-    //  tmp_node->token = scanned_token[i+1];
-
-    //  i += 2;
-    //}
-    
-    node->left_child = new ASTNode();
-    node->left_child->token = scanned_tokens[0];
-    node->token = scanned_tokens[1];
-
-    auto&& slice = std::vector<Token::Token>(
-      scanned_tokens.begin() + 2, 
-      scanned_tokens.end()
-    );
-
-    node->right_child = parse_ast(slice);
-    
-    return node;
-    //auto& current_token = scanned_tokens[0];
-
-    //if (Token::token_is_terminal(current_token)) {
-    //  
-    //}
-    //return node;
-  }
-}
 
 int main(int argc, char **argv) {
   auto args = get_args(argc, argv);
@@ -107,7 +37,8 @@ int main(int argc, char **argv) {
 
 
   Parser::ASTNode *node = Parser::parse_ast(scanned_tokens);
-  std::cout << Parser::interpret_ast(node) << std::endl;
+  Parser::interpret_ast_llvm(node);
+  //std::cout << Parser::interpret_ast(node) << std::endl;
 
   // compiled successfully! keep doing what you do!
 
