@@ -30,34 +30,42 @@ namespace Generator {
 
     std::visit(overloaded {
       [&](Plus&) {
-        *llvmir_file << "%" << next_reg << " = add nsw i32 %" << register_stack.top();
+        auto rhs = register_stack.top();
         register_stack.pop();
-        *llvmir_file << ", %" << register_stack.top() << "\n";
+        auto lhs = register_stack.top();
         register_stack.pop();
+
+        *llvmir_file << "%" << next_reg << " = add nsw i32 %" << lhs << ", %" << rhs << "\n";
         register_stack.push(next_reg);
         next_reg++;
       },
       [&](Minus&) {
-        *llvmir_file << "%" << next_reg << " = sub nsw i32 %" << register_stack.top();
+        auto rhs = register_stack.top();
         register_stack.pop();
-        *llvmir_file << ", %" << register_stack.top() << "\n";
+        auto lhs = register_stack.top();
         register_stack.pop();
+
+        *llvmir_file << "%" << next_reg << " = sub nsw i32 %" << lhs << ", %" << rhs << "\n";
         register_stack.push(next_reg);
         next_reg++;
       },
       [&](Star&) {
-        *llvmir_file << "%" << next_reg << " = mul nsw i32 %" << register_stack.top();
+        auto rhs = register_stack.top();
         register_stack.pop();
-        *llvmir_file << ", %" << register_stack.top() << "\n";
+        auto lhs = register_stack.top();
         register_stack.pop();
+
+        *llvmir_file << "%" << next_reg << " = mul nsw i32 %" << lhs << ", %" << rhs << "\n";
         register_stack.push(next_reg);
         next_reg++;
       },
       [&](Slash&) {
-        *llvmir_file << "%" << next_reg << " = udiv i32 %" << register_stack.top();
+        auto rhs = register_stack.top();
         register_stack.pop();
-        *llvmir_file << ", %" << register_stack.top() << "\n";
+        auto lhs = register_stack.top();
         register_stack.pop();
+
+        *llvmir_file << "%" << next_reg << " = udiv i32 %" << lhs << ", %" << rhs << "\n";
         register_stack.push(next_reg);
         next_reg++;
       },
@@ -66,7 +74,7 @@ namespace Generator {
                      << "store i32 " << t.value << ", i32* %" << next_reg << ", align 4\n"
                      << "%" << next_reg + 1 << " = load i32, i32* %" << next_reg << ", align 4\n";
         register_stack.push(next_reg + 1);
-        next_reg += 2;
+        next_reg += 2; //since each loading requires 1 reg for ptr and 1 reg for val
       },
       [&](auto&) { throw std::runtime_error("LLVM generation unimplemented for this token"); }
     }, token);
