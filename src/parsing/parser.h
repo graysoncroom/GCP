@@ -2,6 +2,9 @@
 
 #include "generator/generator.h"
 
+#include <stdexcept>
+#include <vector>
+
 namespace Parser {
   struct ASTNode {
     Token::Token token;
@@ -11,7 +14,7 @@ namespace Parser {
 
   int interpret_ast(ASTNode *node) {
     if (node->left_child == nullptr || node->right_child == nullptr) {
-      if (!Token::is_terminal(node->token)) { throw "AST Error"; }
+      if (!Token::is_terminal(node->token)) { throw std::runtime_error("[Parser::interpret_ast] Operator has no children"); }
 
       return std::get<Token::IntegerLiteral>(node->token).value;
     }
@@ -23,7 +26,7 @@ namespace Parser {
 
   void interpret_ast_llvm_helper(ASTNode *node) {
     if (node->left_child == nullptr || node->right_child == nullptr) {
-      if (!Token::is_terminal(node->token)) { throw "AST Error"; }
+      if (!Token::is_terminal(node->token)) { throw std::runtime_error("[Parser::interpret_ast_llvm_helper] Operator has no children"); }
 
       Generator::generate_llvm(node->token);
       return;
@@ -47,7 +50,7 @@ namespace Parser {
 
     switch (token_count) {
       case 0:
-        throw "Input File Empty. Invalid program.";
+        throw std::runtime_error("[Parser::parse_ast] Scanned input file has no tokens (Invalid program)");
       case 1: {
         node->token = scanned_tokens[0];
         return node;

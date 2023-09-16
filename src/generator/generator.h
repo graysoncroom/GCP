@@ -4,15 +4,19 @@
 
 #include <stack>
 #include <fstream>
+#include <stdexcept>
 
+// TODO: Horrible way of abstracting a Generator. Fix! Singleton class? Idk.
+// What's the problem? register_stack and llvmir_file pointer are accessible outside this file
 namespace Generator {
   using Reg = int; // TODO: Maybe replace with a tuple that includes both the reg # and type info
 
+  // TODO: I don't even really know what static means inside a namespace...
   static std::stack<Reg> register_stack;
   static std::ofstream *llvmir_file;
 
   static void generate_llvm_initialize() {
-    llvmir_file = new std::ofstream("program_ir.ll");
+    llvmir_file = new std::ofstream("a.ll");
 
     *llvmir_file << "; ModuleID = 'examples/test1'\n"
                  << ";source_filename = \"examples/test1\"\n" 
@@ -23,13 +27,13 @@ namespace Generator {
                  << "define dso_local i32 @main() #0 {\n";
   }
 
-  static void generate_llvm(Token::Token token) {
+  static void generate_llvm(const Token::Token& token) {
     using namespace Token;
 
     static Reg next_reg = 1;
 
     std::visit(overloaded {
-      [&](Plus&) {
+      [&](const Plus&) {
         auto rhs = register_stack.top();
         register_stack.pop();
         auto lhs = register_stack.top();
@@ -39,7 +43,7 @@ namespace Generator {
         register_stack.push(next_reg);
         next_reg++;
       },
-      [&](Minus&) {
+      [&](const Minus&) {
         auto rhs = register_stack.top();
         register_stack.pop();
         auto lhs = register_stack.top();
@@ -49,7 +53,7 @@ namespace Generator {
         register_stack.push(next_reg);
         next_reg++;
       },
-      [&](Star&) {
+      [&](const Star&) {
         auto rhs = register_stack.top();
         register_stack.pop();
         auto lhs = register_stack.top();
@@ -59,7 +63,7 @@ namespace Generator {
         register_stack.push(next_reg);
         next_reg++;
       },
-      [&](Slash&) {
+      [&](const Slash&) {
         auto rhs = register_stack.top();
         register_stack.pop();
         auto lhs = register_stack.top();
@@ -69,14 +73,14 @@ namespace Generator {
         register_stack.push(next_reg);
         next_reg++;
       },
-      [&](IntegerLiteral &t) {
+      [&](const IntegerLiteral &t) {
         *llvmir_file << "%" << next_reg << " = alloca i32, align 4\n"
                      << "store i32 " << t.value << ", i32* %" << next_reg << ", align 4\n"
                      << "%" << next_reg + 1 << " = load i32, i32* %" << next_reg << ", align 4\n";
         register_stack.push(next_reg + 1);
         next_reg += 2; //since each loading requires 1 reg for ptr and 1 reg for val
       },
-      [&](auto&) { throw std::runtime_error("LLVM generation unimplemented for this token"); }
+      [&](const auto&) { throw std::runtime_error("[Generator::generate_llvm] Undefined LLVM-IR translation for token"); }
     }, token);
   }
 

@@ -12,6 +12,7 @@ int main(int argc, char **argv) {
   // Check if the input file exists
   std::string input_filename = args["input"].as<std::string>();
   std::ifstream program_to_compile(input_filename);
+
   if (!program_to_compile) {
     std::cerr << "Error: Unable to open input file: " << input_filename << std::endl;
     return 1;
@@ -30,7 +31,7 @@ int main(int argc, char **argv) {
 
   //std::reverse(std::begin(scanned_tokens), std::end(scanned_tokens));
 
-  for (auto &token : scanned_tokens) {
+  for (auto& token : scanned_tokens) {
     std::cout << token << ' ';
   }
   std::cout << std::endl;

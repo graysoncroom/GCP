@@ -2,69 +2,58 @@
 
 #include <cctype>
 #include <iostream>
+#include <optional>
+#include <variant>
 #include <stdexcept>
 #include <string_view>
 #include <string>
-
-#include <boost/bimap.hpp>
-//#include <boost/assign.hpp>
-//
-// Token::Token
+//#include <boost/bimap.hpp>
 
 namespace Token {
+  // ====== Token Definitions ======
   struct UnknownToken {};
 
   // operators
-  struct Plus {
-    template <typename T> T operator()(T x, T y) { return x + y; }
-  };
-
-  struct Minus {
-    template <typename T> T operator()(T x, T y) { return x - y; }
-  };
-
-  struct Star {
-    template <typename T> T operator()(T x, T y) { return x * y; }
-  };
-
-  struct Slash {
-    template <typename T> T operator()(T x, T y) { return x / y; }
-  };
+  struct Plus  {};
+  struct Minus {};
+  struct Star  {};
+  struct Slash {};
 
   // literals
   struct IntegerLiteral { int value; };
 
+  using Token = std::variant<UnknownToken, Plus, Minus, Star, Slash, IntegerLiteral>;
+
+  // ====== Token Helpers / Utilities ======
   template<class... Ts>
   struct overloaded : Ts... { using Ts::operator()...; };
 
   template<class... Ts>
   overloaded(Ts...) -> overloaded<Ts...>;
 
-  using Token = std::variant<UnknownToken, Plus, Minus, Star, Slash, IntegerLiteral>;
-
   template <typename T>
-  T call_operator_of(Token &token, T x, T y) {
+  T call_operator_of(const Token& token, T x, T y) {
     T result{};
     std::visit(overloaded {
-      [&](Plus&)            { result = x + y; },
-      [&](Minus&)           { result = x - y; },
-      [&](Star&)            { result = x * y; },
-      [&](Slash&)           { result = x / y; },
-      [&](IntegerLiteral &) { throw std::runtime_error("error"); },
-      [&](auto&)            { throw std::runtime_error("error"); }
+      [&](const Plus&)            { result = x + y; },
+      [&](const Minus&)           { result = x - y; },
+      [&](const Star&)            { result = x * y; },
+      [&](const Slash&)           { result = x / y; },
+      [&](const IntegerLiteral&)  { throw std::runtime_error("[Token::call_operator_of] IntegerLiteral is not an operator"); },
+      [&](const auto&)            { throw std::runtime_error("[Token::call_operator_of] Undefined token in visitor overload"); }
     }, token);
     return result;
   }
 
-  bool is_terminal(Token &token) {
+  bool is_terminal(const Token& token) {
     bool token_is_terminal;
     std::visit(overloaded {
-      [&](Plus&)            { token_is_terminal = false; },
-      [&](Minus&)           { token_is_terminal = false; },
-      [&](Star&)            { token_is_terminal = false; },
-      [&](Slash&)           { token_is_terminal = false; },
-      [&](IntegerLiteral &) { token_is_terminal = true; },
-      [&](auto&)            { throw std::runtime_error("is terminal error"); }
+      [&](const Plus&)            { token_is_terminal = false; },
+      [&](const Minus&)           { token_is_terminal = false; },
+      [&](const Star&)            { token_is_terminal = false; },
+      [&](const Slash&)           { token_is_terminal = false; },
+      [&](const IntegerLiteral &) { token_is_terminal = true; },
+      [&](const auto&)            { throw std::runtime_error("[Token::is_terminal] Undefined token in visitor overload"); }
     }, token);
 
     return token_is_terminal;
@@ -88,20 +77,20 @@ namespace Token {
     }
   }
 
-  std::ostream &operator<<(std::ostream &os, Token &token) {
+  std::ostream& operator<<(std::ostream& os, const Token& token) {
     std::visit(overloaded {
-      [&os](Plus&)             { os << "+"; },
-      [&os](Minus&)            { os << "-"; },
-      [&os](Star&)             { os << "*"; },
-      [&os](Slash&)            { os << "/"; },
-      [&os](IntegerLiteral &t) { os << t.value; },
-      [&os](auto&)             { throw std::runtime_error("no string conversion available"); }
+      [&os](const Plus&)             { os << "+"; },
+      [&os](const Minus&)            { os << "-"; },
+      [&os](const Star&)             { os << "*"; },
+      [&os](const Slash&)            { os << "/"; },
+      [&os](const IntegerLiteral &t) { os << t.value; },
+      [&os](const auto&)             { throw std::runtime_error("[Token::operator<<] Undefined token in visitor overload"); }
     }, token);
 
     return os;
   }
 
-  std::istream &operator>>(std::istream &is, Token &token) {
+  std::istream& operator>>(std::istream& is, Token& token) {
     char c;
     is >> std::ws;  // Skip leading whitespace
 
