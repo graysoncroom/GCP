@@ -12,17 +12,21 @@
 namespace Token {
   // ====== Token Definitions ======
   struct UnknownToken {};
+  struct StatementEnd {};
 
-  // operators
+  // binary operators
   struct Plus  {};
   struct Minus {};
   struct Star  {};
   struct Slash {};
 
+  // unary operators
+  struct Print {};
+
   // literals
   struct IntegerLiteral { int value; };
 
-  using Token = std::variant<UnknownToken, Plus, Minus, Star, Slash, IntegerLiteral>;
+  using Token = std::variant<UnknownToken, StatementEnd, Plus, Minus, Star, Slash, Print, IntegerLiteral>;
 
   // ====== Token Helpers / Utilities ======
   template<class... Ts>
@@ -48,12 +52,12 @@ namespace Token {
   bool is_terminal(const Token& token) {
     bool token_is_terminal;
     std::visit(overloaded {
-      [&](const Plus&)            { token_is_terminal = false; },
-      [&](const Minus&)           { token_is_terminal = false; },
-      [&](const Star&)            { token_is_terminal = false; },
-      [&](const Slash&)           { token_is_terminal = false; },
-      [&](const IntegerLiteral &) { token_is_terminal = true; },
-      [&](const auto&)            { throw std::runtime_error("[Token::is_terminal] Undefined token in visitor overload"); }
+      [&](const Plus&)           { token_is_terminal = false; },
+      [&](const Minus&)          { token_is_terminal = false; },
+      [&](const Star&)           { token_is_terminal = false; },
+      [&](const Slash&)          { token_is_terminal = false; },
+      [&](const IntegerLiteral&) { token_is_terminal = true; },
+      [&](const auto&)           { throw std::runtime_error("[Token::is_terminal] Undefined token in visitor overload"); }
     }, token);
 
     return token_is_terminal;
@@ -72,6 +76,12 @@ namespace Token {
     else if (str == "/") {
       return Slash{};
     }
+    else if (str == ";") {
+      return StatementEnd{};
+    }
+    else if (str == "print") {
+      return Print{};
+    }
     else {
       return std::nullopt;
     }
@@ -83,7 +93,9 @@ namespace Token {
       [&os](const Minus&)            { os << "-"; },
       [&os](const Star&)             { os << "*"; },
       [&os](const Slash&)            { os << "/"; },
-      [&os](const IntegerLiteral &t) { os << t.value; },
+      [&os](const Print&)            { os << "print"; },
+      [&os](const IntegerLiteral& t) { os << t.value; },
+      [&os](const StatementEnd&)     { os << ";"; },
       [&os](const auto&)             { throw std::runtime_error("[Token::operator<<] Undefined token in visitor overload"); }
     }, token);
 
@@ -118,8 +130,25 @@ namespace Token {
         token = opToken.value();
       }
       else {
-        token = UnknownToken{};
-        is.setstate(std::ios_base::failbit);
+        std::string expr;
+        auto i = 0;
+        while (!std::isspace(c)) {
+          expr += c;
+          if (expr == "print") {
+            token = Print{};
+            i = 0;
+            break;
+          }
+          is.get(c);
+          i++;
+        }
+
+        if (i != 0) {
+          token = UnknownToken{};
+          is.setstate(std::ios_base::failbit);
+        }
+
+        while (i > 0) { is.unget(); i--; }
       }
     }
 

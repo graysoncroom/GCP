@@ -33,8 +33,10 @@ int main(int argc, char **argv) {
 
   for (auto& token : scanned_tokens) {
     std::cout << token << ' ';
+    if (std::holds_alternative<Token::StatementEnd>(token)) {
+      std::cout << std::endl;
+    }
   }
-  std::cout << std::endl;
 
 
   Parser::ASTNode *node = Parser::parse_ast(scanned_tokens);

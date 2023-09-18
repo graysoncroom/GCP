@@ -73,6 +73,11 @@ namespace Generator {
         register_stack.push(next_reg);
         next_reg++;
       },
+      [&](const Print&) {
+        *llvmir_file << "call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @print_int_fstring , i32 0, i32 0), i32 %" << register_stack.top() << ")\n";
+        register_stack.pop();
+        next_reg++;
+      },
       [&](const IntegerLiteral &t) {
         *llvmir_file << "%" << next_reg << " = alloca i32, align 4\n"
                      << "store i32 " << t.value << ", i32* %" << next_reg << ", align 4\n"
@@ -80,13 +85,12 @@ namespace Generator {
         register_stack.push(next_reg + 1);
         next_reg += 2; //since each loading requires 1 reg for ptr and 1 reg for val
       },
+      [&](const UnknownToken&) {},
       [&](const auto&) { throw std::runtime_error("[Generator::generate_llvm] Undefined LLVM-IR translation for token"); }
     }, token);
   }
 
   static void generate_llvm_finalize() {
-    *llvmir_file << "call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @print_int_fstring , i32 0, i32 0), i32 %" << register_stack.top() << ")\n";
-    register_stack.pop();
     *llvmir_file << "ret i32 0\n"
                  << "}\n"
                  << "declare i32 @printf(i8*, ...) #1\n"
