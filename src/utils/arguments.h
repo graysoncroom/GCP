@@ -11,7 +11,7 @@ bpo::variables_map get_args(int argc, char **argv) {
   desc.add_options()
     ("help", "produce help message")
     ("version", "print version information")
-    ("input", bpo::value<std::string>()->required(), "input file");
+    ("input", bpo::value<std::string>(), "input file");
   
   // Parse the command line arguments
   bpo::variables_map vm;
@@ -27,6 +27,11 @@ bpo::variables_map get_args(int argc, char **argv) {
   if (vm.count("version")) {
     std::cout << "Version 0.1" << std::endl;
     exit(0);   
+  }
+
+  if (vm.count("input") == 0) {
+    std::cout << "Required option `--input` omitted" << std::endl;
+    exit(1);
   }
 
   return vm;
