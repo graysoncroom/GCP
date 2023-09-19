@@ -3,6 +3,7 @@
 #include <cctype>
 #include <iostream>
 #include <optional>
+#include <type_traits>
 #include <variant>
 #include <stdexcept>
 #include <string_view>
@@ -19,14 +20,24 @@ namespace Token {
   struct Minus {};
   struct Star  {};
   struct Slash {};
+  struct Assignment {};
 
   // unary operators
   struct Print {};
 
+  // variable-related stuff
+  struct TypeInteger {};
+  struct TypeFloat   {}; // TODO: Unimplemented
+  struct TypeDouble  {}; // TODO: Unimplemented
+
+  struct GlobalVariable    { std::string identifier; };
+  struct MutableVariable   { std::string identifier; }; // TODO: Unimplemented
+  struct ImmutableVariable { std::string identifier; }; // TODO: Unimplemented
+
   // literals
   struct IntegerLiteral { int value; };
 
-  using Token = std::variant<UnknownToken, StatementEnd, Plus, Minus, Star, Slash, Print, IntegerLiteral>;
+  using Token = std::variant<UnknownToken, StatementEnd, Plus, Minus, Star, Slash, Assignment, Print, TypeInteger, IntegerLiteral, GlobalVariable>;
 
   // ====== Token Helpers / Utilities ======
   template<class... Ts>
@@ -35,16 +46,21 @@ namespace Token {
   template<class... Ts>
   overloaded(Ts...) -> overloaded<Ts...>;
 
-  template <typename T>
-  T call_operator_of(const Token& token, T x, T y) {
-    T result{};
+  // Use implicit type conversions that C++ uses for + operator for all operators when
+  // running this code interactively. Going to deprecate this interactive feature soon.
+  template <typename T, typename U>
+  auto call_operator_of(const Token& token, T& x, U& y) -> typename std::decay_t<decltype(x + y)> {
+    typename std::decay_t<decltype(x+y)> result{};
     std::visit(overloaded {
-      [&](const Plus&)            { result = x + y; },
-      [&](const Minus&)           { result = x - y; },
-      [&](const Star&)            { result = x * y; },
-      [&](const Slash&)           { result = x / y; },
-      [&](const IntegerLiteral&)  { throw std::runtime_error("[Token::call_operator_of] IntegerLiteral is not an operator"); },
-      [&](const auto&)            { throw std::runtime_error("[Token::call_operator_of] Undefined token in visitor overload"); }
+      [&](const Plus&)           { result = x + y; },
+      [&](const Minus&)          { result = x - y; },
+      [&](const Star&)           { result = x * y; },
+      [&](const Slash&)          { result = x / y; },
+      [&](const Assignment&)     { x = y; result = x; },
+      [&](const GlobalVariable&) { throw std::runtime_error("[Token::call_operator_of] GlobalVariable is not an operator"); },
+      [&](const TypeInteger&)    { throw std::runtime_error("[Token::call_operator_of] TypeInteger is not an operator"); },
+      [&](const IntegerLiteral&) { throw std::runtime_error("[Token::call_operator_of] IntegerLiteral is not an operator"); },
+      [&](const auto&)           { throw std::runtime_error("[Token::call_operator_of] Undefined token in visitor overload"); }
     }, token);
     return result;
   }
@@ -56,6 +72,10 @@ namespace Token {
       [&](const Minus&)          { token_is_terminal = false; },
       [&](const Star&)           { token_is_terminal = false; },
       [&](const Slash&)          { token_is_terminal = false; },
+      [&](const Print&)          { token_is_terminal = false; },
+      [&](const Assignment&)     { token_is_terminal = false; },
+      [&](const GlobalVariable&) { token_is_terminal = false; },
+      [&](const TypeInteger&)    { token_is_terminal = false; },
       [&](const IntegerLiteral&) { token_is_terminal = true; },
       [&](const auto&)           { throw std::runtime_error("[Token::is_terminal] Undefined token in visitor overload"); }
     }, token);
@@ -63,28 +83,20 @@ namespace Token {
     return token_is_terminal;
   }
   
-  std::optional<Token> construct_token(const std::string_view &str) {
-    if (str == "+") {
-      return Plus{};
-    }
-    else if (str == "-") {
-      return Minus{};
-    }
-    else if (str == "*") {
-      return Star{};
-    }
-    else if (str == "/") {
-      return Slash{};
-    }
-    else if (str == ";") {
-      return StatementEnd{};
-    }
-    else if (str == "print") {
-      return Print{};
-    }
-    else {
-      return std::nullopt;
-    }
+  std::optional<Token> construct_token(const std::string_view& str) {
+    if      (str == "+")     { return Plus{}; }
+    else if (str == "-")     { return Minus{}; }
+    else if (str == "*")     { return Star{}; }
+    else if (str == "/")     { return Slash{}; }
+    else if (str == ";")     { return StatementEnd{}; }
+    else if (str == "print") { return Print{}; }
+    else if (str == "int")   { return TypeInteger{}; }
+    else if (str == "=")     { return Assignment{}; }
+    else                     { return std::nullopt; }
+  }
+
+  bool is_well_formed_identifier(const std::string_view&) {
+    return true; // TODO: Only return true if it is a valid c-style identifier
   }
 
   std::ostream& operator<<(std::ostream& os, const Token& token) {
@@ -94,8 +106,11 @@ namespace Token {
       [&os](const Star&)             { os << "*"; },
       [&os](const Slash&)            { os << "/"; },
       [&os](const Print&)            { os << "print"; },
-      [&os](const IntegerLiteral& t) { os << t.value; },
+      [&os](const Assignment&)       { os << "="; },
       [&os](const StatementEnd&)     { os << ";"; },
+      [&os](const TypeInteger&)      { os << "int"; },
+      [&os](const GlobalVariable& t) { os << t.identifier; },
+      [&os](const IntegerLiteral& t) { os << t.value; },
       [&os](const auto&)             { throw std::runtime_error("[Token::operator<<] Undefined token in visitor overload"); }
     }, token);
 
@@ -120,7 +135,7 @@ namespace Token {
       int value;
       is >> value;
       token = IntegerLiteral{value};
-    } 
+    }
     else {
       // Try to construct an operator token
       std::string symbol(1, c);
@@ -131,24 +146,31 @@ namespace Token {
       }
       else {
         std::string expr;
-        auto i = 0;
+        auto expr_has_been_identified = false;
         while (!std::isspace(c)) {
           expr += c;
-          if (expr == "print") {
-            token = Print{};
-            i = 0;
+          is.get(c);
+
+          std::optional<Token> maybe_expr_token = construct_token(expr);
+          if (maybe_expr_token.has_value()) {
+            token = *std::move(maybe_expr_token);
+            expr_has_been_identified = true;
             break;
           }
-          is.get(c);
-          i++;
         }
 
-        if (i != 0) {
-          token = UnknownToken{};
-          is.setstate(std::ios_base::failbit);
-        }
+        if (!expr_has_been_identified) {
+          if (is_well_formed_identifier(expr)) {
+            token = GlobalVariable{expr};
+          }
+          else {
+            token = UnknownToken{};
+            is.setstate(std::ios_base::failbit);
 
-        while (i > 0) { is.unget(); i--; }
+            // fail to read, put expr back on istream
+            for (size_t i = expr.size(); i > 0; --i) { is.unget(); }
+          }
+        }
       }
     }
 
